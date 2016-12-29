@@ -8,12 +8,12 @@
 /* STACK */
 uint16_t *stack;
 uint64_t sp = 0, stack_size = 0x800;
-#define PUSH(V) ({	if (sp == stack_size)				\
-				stack = realloc(stack, sizeof(uint16_t) \
-						* (stack_size *= 2));	\
-			stack[sp++] = V; })
+#define PUSH(V) if (sp == stack_size)				\
+			stack = realloc(stack, sizeof(uint16_t) \
+					* (stack_size *= 2));	\
+		stack[sp++] = V
 #define POP() stack[--sp]
-#define EMPTY() (!sp)
+#define EMPTY() !sp
 
 /* HEAP + REGISTERS */
 uint16_t heap[REG_START + 8];
@@ -24,21 +24,11 @@ uint64_t ip = 0;
 
 /* ARGUMENT HANDLING */
 uint16_t a, b, c;
-#define REGIMM() ({	a = heap[ip++];				\
-			b = heap[ip++];				\
-			if (b > MAX_LITERAL)			\
-				b = heap[b]; })
-#define REGIMMIMM() ({	REGIMM();				\
-			c = heap[ip++];				\
-			if (c > MAX_LITERAL)			\
-				c = heap[c]; })
-#define REG() ({	a = heap[ip++];				\
-			if (a > MAX_LITERAL)			\
-				a = heap[a]; })
-#define REGREG() ({	REG();					\
-			b = heap[ip++];				\
-			if (b > MAX_LITERAL)			\
-				b = heap[b]; })
+#define __IR(X) X = heap[ip++]; if (X > MAX_LITERAL) X = heap[X]
+#define R_IR() a = heap[ip++]; __IR(b)
+#define R_IR_IR() R_IR(); __IR(c)
+#define IR() __IR(a)
+#define IR_IR() IR(); __IR(b)
 
 int main(int argc, char **argv)
 {
@@ -56,11 +46,11 @@ int main(int argc, char **argv)
 do_noop:
 	DISPATCH();
 do_set:
-	REGIMM();
+	R_IR();
 	heap[a] = b;
 	DISPATCH();
 do_push:
-	REG();
+	IR();
 	PUSH(a);
 	DISPATCH();
 do_pop:
@@ -70,61 +60,61 @@ do_pop:
 	heap[a] = POP();
 	DISPATCH();
 do_eq:
-	REGIMMIMM();
+	R_IR_IR();
 	heap[a] = b == c;
 	DISPATCH();
 do_gt:
-	REGIMMIMM();
+	R_IR_IR();
 	heap[a] = b > c;
 	DISPATCH();
 do_jmp:
-	REG();
+	IR();
 	ip = a;
 	DISPATCH();
 do_jt:
-	REGREG();
+	IR_IR();
 	if (a)
 		ip = b;
 	DISPATCH();
 do_jf:
-	REGREG();
+	IR_IR();
 	if (!a)
 		ip = b;
 	DISPATCH();
 do_add:
-	REGIMMIMM();
+	R_IR_IR();
 	heap[a] = (b + c) & MAX_LITERAL;
 	DISPATCH();
 do_mult:
-	REGIMMIMM();
+	R_IR_IR();
 	heap[a] = (b * c) & MAX_LITERAL;
 	DISPATCH();
 do_mod:
-	REGIMMIMM();
+	R_IR_IR();
 	heap[a] = b % c;
 	DISPATCH();
 do_and:
-	REGIMMIMM();
+	R_IR_IR();
 	heap[a] = b & c;
 	DISPATCH();
 do_or:
-	REGIMMIMM();
+	R_IR_IR();
 	heap[a] = b | c;
 	DISPATCH();
 do_not:
-	REGIMM();
+	R_IR();
 	heap[a] = ~b & MAX_LITERAL;
 	DISPATCH();
 do_rmem:
-	REGIMM();
+	R_IR();
 	heap[a] = heap[b];
 	DISPATCH();
 do_wmem:
-	REGREG();
+	IR_IR();
 	heap[a] = b;
 	DISPATCH();
 do_call:
-	REG();
+	IR();
 	PUSH(ip);
 	ip = a;
 	DISPATCH();
@@ -134,7 +124,7 @@ do_ret:
 	ip = POP();
 	DISPATCH();
 do_out:
-	REG();
+	IR();
 	putchar(a);
 	DISPATCH();
 do_in:
