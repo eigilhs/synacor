@@ -24,11 +24,13 @@ uint64_t ip = 0;
 
 /* ARGUMENT HANDLING */
 uint16_t a, b, c;
-#define __IR(X) X = heap[ip++]; if (X > MAX_LITERAL) X = heap[X]
-#define R_IR() a = heap[ip++]; __IR(b)
-#define R_IR_IR() R_IR(); __IR(c)
-#define IR() __IR(a)
-#define IR_IR() IR(); __IR(b)
+#define R_IR() a = heap[ip++]; IR(b)
+#define IR(X) X = heap[ip++]; if (X & REG_START) X = heap[X]
+#define LOAD_2ARY(EXPR) R_IR(); IR(c); heap[a] = EXPR; DISPATCH()
+#define EXPR_2ARY(EXPR) IR(a); IR(b); EXPR; DISPATCH()
+#define LOAD_1ARY(EXPR) R_IR(); heap[a] = EXPR; DISPATCH()
+#define EXPR_1ARY(EXPR) IR(a); EXPR; DISPATCH()
+#define LOAD_0ARY(EXPR) heap[heap[ip++]] = EXPR; DISPATCH()
 
 int main(int argc, char **argv)
 {
@@ -37,99 +39,34 @@ int main(int argc, char **argv)
 	stack = malloc(sizeof(uint16_t) * stack_size);
 
 	static void *dispatch_table[] = {
-		&&do_halt, &&do_set, &&do_push, &&do_pop, &&do_eq, &&do_gt,
-		&&do_jmp, &&do_jt, &&do_jf, &&do_add, &&do_mult, &&do_mod,
-		&&do_and, &&do_or, &&do_not, &&do_rmem, &&do_wmem, &&do_call,
-		&&do_ret, &&do_out, &&do_in, &&do_noop
+		&&halt, &&set, &&push, &&pop, &&eq, &&gt, &&jmp, &&jt, &&jf,
+		&&add, &&mult, &&mod, &&and, &&or, &&not, &&rmem, &&wmem,
+		&&call, &&ret, &&out, &&in, &&noop
 	};
 
-do_noop:
-	DISPATCH();
-do_set:
-	R_IR();
-	heap[a] = b;
-	DISPATCH();
-do_push:
-	IR();
-	PUSH(a);
-	DISPATCH();
-do_pop:
-	if (EMPTY())
-		return 1;
-	a = heap[ip++];
-	heap[a] = POP();
-	DISPATCH();
-do_eq:
-	R_IR_IR();
-	heap[a] = b == c;
-	DISPATCH();
-do_gt:
-	R_IR_IR();
-	heap[a] = b > c;
-	DISPATCH();
-do_jmp:
-	IR();
-	ip = a;
-	DISPATCH();
-do_jt:
-	IR_IR();
-	if (a)
-		ip = b;
-	DISPATCH();
-do_jf:
-	IR_IR();
-	if (!a)
-		ip = b;
-	DISPATCH();
-do_add:
-	R_IR_IR();
-	heap[a] = (b + c) & MAX_LITERAL;
-	DISPATCH();
-do_mult:
-	R_IR_IR();
-	heap[a] = (b * c) & MAX_LITERAL;
-	DISPATCH();
-do_mod:
-	R_IR_IR();
-	heap[a] = b % c;
-	DISPATCH();
-do_and:
-	R_IR_IR();
-	heap[a] = b & c;
-	DISPATCH();
-do_or:
-	R_IR_IR();
-	heap[a] = b | c;
-	DISPATCH();
-do_not:
-	R_IR();
-	heap[a] = ~b & MAX_LITERAL;
-	DISPATCH();
-do_rmem:
-	R_IR();
-	heap[a] = heap[b];
-	DISPATCH();
-do_wmem:
-	IR_IR();
-	heap[a] = b;
-	DISPATCH();
-do_call:
-	IR();
-	PUSH(ip);
-	ip = a;
-	DISPATCH();
-do_ret:
-	if (EMPTY())
-		goto do_halt;
+noop:	DISPATCH();
+set:	LOAD_1ARY(b);
+out:	EXPR_1ARY(putchar(a));
+in:	LOAD_0ARY(getchar());
+jmp:	EXPR_1ARY(ip = a);
+jt:	EXPR_2ARY(if (a) ip = b);
+jf:	EXPR_2ARY(if (!a) ip = b);
+add:	LOAD_2ARY(b + c & MAX_LITERAL);
+mult:	LOAD_2ARY(b * c & MAX_LITERAL);
+mod:	LOAD_2ARY(b % c);
+and:	LOAD_2ARY(b & c);
+or:	LOAD_2ARY(b | c);
+gt:	LOAD_2ARY(b > c);
+eq:	LOAD_2ARY(b == c);
+not:	LOAD_1ARY(b ^ MAX_LITERAL);
+rmem:	LOAD_1ARY(heap[b]);
+wmem:	EXPR_2ARY(heap[a] = b);
+push:	EXPR_1ARY(PUSH(a));
+pop:	LOAD_0ARY(POP());
+call:	EXPR_1ARY(PUSH(ip); ip = a);
+ret:	if (__builtin_expect(EMPTY(), 0))
+		goto halt;
 	ip = POP();
 	DISPATCH();
-do_out:
-	IR();
-	putchar(a);
-	DISPATCH();
-do_in:
-	heap[heap[ip++]] = getchar();
-	DISPATCH();
-do_halt:
-	return 0;
+halt:	return 0;
 }
