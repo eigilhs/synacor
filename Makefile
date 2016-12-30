@@ -1,7 +1,7 @@
 VPATH = src
 CFLAGS = -O3
 
-.PHONY: distclean
+.PHONY: all distclean
 
 all: vm
 
