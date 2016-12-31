@@ -13,8 +13,11 @@ uint64_t sp = 0, stack_size = 0x800, ip;
 		stack[sp++] = V
 #define POP() stack[--sp]
 #define GOTO(N) goto *dispatch_table[heap[ip = N]]
-#define R heap[heap[++ip]]
-#define RI ({ const uint16_t x = heap[++ip]; x & REG_START ? heap[x] : x; })
+#define RA heap[heap[ip+1]]
+#define IR(N) ({ const uint16_t x = heap[ip+N]; x & REG_START ? heap[x] : x; })
+#define A IR(1)
+#define B IR(2)
+#define C IR(3)
 
 int main(int argc, char **argv)
 {
@@ -29,25 +32,25 @@ int main(int argc, char **argv)
 
 	GOTO(0);
 noop:					GOTO(ip+1);
-set:	R = RI;				GOTO(ip+1);
-out:	putchar(RI);			GOTO(ip+1);
-in:	R = getchar();			GOTO(ip+1);
-jmp:					GOTO(RI);
-jt:	if (RI) GOTO(RI);		GOTO(ip+2);
-jf:	if (!RI) GOTO(RI);		GOTO(ip+2);
-add:	R = RI + RI & MAX_LITERAL;	GOTO(ip+1);
-mult:	R = RI * RI & MAX_LITERAL;	GOTO(ip+1);
-mod:	R = RI % RI;			GOTO(ip+1);
-and:	R = RI & RI;			GOTO(ip+1);
-or:	R = RI | RI;			GOTO(ip+1);
-gt:	R = RI > RI;			GOTO(ip+1);
-eq:	R = RI == RI;			GOTO(ip+1);
-not:	R = RI ^ MAX_LITERAL;		GOTO(ip+1);
-rmem:	R = heap[RI];			GOTO(ip+1);
-wmem:	heap[RI] = RI;			GOTO(ip+1);
-push:	PUSH(RI);			GOTO(ip+1);
-pop:	R = POP();			GOTO(ip+1);
-call:	PUSH(ip+2);			GOTO(RI);
+set:	RA = B;				GOTO(ip+3);
+out:	putchar(A);			GOTO(ip+2);
+in:	RA = getchar();			GOTO(ip+2);
+jmp:					GOTO(A);
+jt:	if (A) GOTO(B);			GOTO(ip+3);
+jf:	if (!A) GOTO(B);		GOTO(ip+3);
+add:	RA = B + C & MAX_LITERAL;	GOTO(ip+4);
+mult:	RA = B * C & MAX_LITERAL;	GOTO(ip+4);
+mod:	RA = B % C;			GOTO(ip+4);
+and:	RA = B & C;			GOTO(ip+4);
+or:	RA = B | C;			GOTO(ip+4);
+gt:	RA = B > C;			GOTO(ip+4);
+eq:	RA = B == C;			GOTO(ip+4);
+not:	RA = B ^ MAX_LITERAL;		GOTO(ip+3);
+rmem:	RA = heap[B];			GOTO(ip+3);
+wmem:	heap[A] = B;			GOTO(ip+3);
+push:	PUSH(A);			GOTO(ip+2);
+pop:	RA = POP();			GOTO(ip+2);
+call:	PUSH(ip+2);			GOTO(A);
 ret:	if (__builtin_expect(!!sp, 1))	GOTO(POP());
 halt:	free(stack);
 }
